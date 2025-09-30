@@ -103,11 +103,43 @@ class BSM:
 
         return
 
-    def binary(self,C0,CP,S,X,T,r,b,vol_est= 0.2):
-        '''
-        求隐含波动率
-        '''
-        pass
+def IV(C0,CP,S,X,T,r,b,vol_est= 0.2):
+    '''
+    求隐含波动率
+    Parameters
+    ----------
+    C0：期权价值
+    CP：看涨或看跌"C"or"P"
+    S : 标的价格.
+    X : 行权价格.
+    T : 年化到期时间.
+    r : 收益率.
+    b : 持有成本，当b = r 时，为标准的无股利模型，b=0时，为期货期权，b为r-q时，为支付股利模型，b为r-rf时为外汇期权.
+    vol_est：预计的初始波动率
+    Returns
+    -------
+    返回看涨期权的隐含波动率。
+    '''
+    start = 0  #初始波动率下限
+    end = 2 #初始波动率上限
+    c = 1 # 先给定一个值，让循环运转起来
+    while abs(c) >= 0.00001: #迭代差异的精度，根据需要调整
+        try:
+            val = BSM(CP,S,X,vol_est,T,r,b).price 
+        except ZeroDivisionError:
+            print("期权的内在价值大于期权的价格，无法收敛出波动率，会触发除0错误")
+            break
+        if val - C0 > 0: #若计算的期权价值大于实际价值，说明使用的波动率偏大
+            end = vol_est
+            vol_est = (start + end)/2    
+            c = end - vol_est
+        else: #若计算的期权价值小于实际价值，说明使用的波动率偏小
+            start = vol_est
+            vol_est = (start + end)/2
+            c = start - vol_est
+    return round(vol_est,4)
+
 if __name__ == "__main__":
     bsm = BSM(CP = "C",S = 100,X = 100,sigma = 0.2,T = 1,r = 0.05,b = 0.05)
     print(bsm.price)
+    print(IV(bsm.price,bsm.CP,bsm.S,bsm.X,bsm.T,bsm.r,bsm.b))
