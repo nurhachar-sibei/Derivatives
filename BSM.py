@@ -102,6 +102,18 @@ class BSM:
         self.sigma_array = self.sigma
 
         return
+    def Delta(self):
+        pass
+    def Gamma(self):
+        pass
+    def Vega(self):
+        pass
+    def Theta(self):
+        pass
+    def Rho(self):
+        pass
+    def Greek(self):
+        pass
 
 def IV(C0,CP,S,X,T,r,b,vol_est= 0.2):
     '''
