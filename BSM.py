@@ -102,19 +102,48 @@ class BSM:
         self.sigma_array = self.sigma
 
         return
-    def Delta(self):
-        pass
-    def Gamma(self):
-        pass
-    def Vega(self):
-        pass
-    def Theta(self):
-        pass
-    def Rho(self):
-        pass
-    def Greek(self):
-        pass
-
+    #解析解
+    def Greeks_analytical_solution(self,CP,S,X,sigma,T,r,b):
+        """
+        Parameters
+        ----------
+        CP：看涨或看跌"C"or"P"
+        S : 标的价格.
+        X : 行权价格.
+        sigma :波动率.
+        T : 年化到期时间.
+        r : 收益率.
+        b : 持有成本，当b = r 时，为标准的无股利模型，b=0时，为期货期权，b为r-q时，为支付股利模型，b为r-rf时为外汇期权.
+        Returns
+        -------
+        返回欧式期权的估值和希腊字母
+        """
+        self.d1 = (np.log(S/X) + (b + sigma**2/2)*T) / (sigma*np.sqrt(T))
+        self.d2 = self.d1 - sigma*np.sqrt(T)
+        if CP == 'C':
+            price = self.BSM_Euro_cal(CP,S,X,sigma,T,r,b)
+            delta = np.exp((b-r)*T)*stats.norm.cdf(self.d1)
+            gamma = np.exp((b-r)*T)*stats.norm.pdf(self.d1) / (S*sigma*np.sqrt(T))
+            vega = S*np.exp((b-r)*T)*stats.norm.pdf(self.d1) * np.sqrt(T)
+            theta = -S*np.exp((b-r)*T)*stats.norm.pdf(self.d1) * sigma / (2*np.sqrt(T)) - (b-r)*S*np.exp((b-r)*T)*stats.norm.cdf(self.d1) - r*X*np.exp(-r*T)*stats.norm.cdf(self.d2)
+            if b!=0:
+                rho = X*T*np.exp(-r*T)*stats.norm.cdf(self.d2)
+            else:
+                rhp = -T*np.exp(-r*T)*(S*stats.norm.cdf(self.d1)-X*stats.norm.cdf(self.d2))
+        elif CP == 'P':
+            price = self.BSM_Euro_cal(CP,S,X,sigma,T,r,b)
+            delta = -np.exp((b-r)*T)*stats.norm.cdf(-self.d1)
+            gamma = np.exp((b-r)*T)*stats.norm.pdf(self.d1) / (S*sigma*np.sqrt(T))
+            vega = S*np.exp((b-r)*T)*stats.norm.pdf(self.d1) * np.sqrt(T)
+            theta = -S*np.exp((b-r)*T)*stats.norm.pdf(self.d1) * sigma / (2*np.sqrt(T)) + (b-r)*S*np.exp((b-r)*T)*stats.norm.cdf(-self.d1) + r*X*np.exp(-r*T)*stats.norm.cdf(-self.d2)
+            if b!=0:
+                rho = -X * T * exp(-r*T) * norm.cdf(-d2)
+            else:
+                rho = -T * exp(-r*T) * (X*norm.cdf(-d2) - S*norm.cdf(-d1))
+        else:
+            raise ValueError("CP must be 'C' or 'P'")
+        greeks = {"option_value":price,"delta":delta,"gamma":gamma,"vega":vega,"theta":theta,"rho":rho}
+        return greeks
 def IV(C0,CP,S,X,T,r,b,vol_est= 0.2):
     '''
     求隐含波动率
