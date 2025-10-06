@@ -31,7 +31,10 @@ class BSM:
         self.V_array_C = None
         self.V_array_P = None
 
-    
+        self.greek = self.Greeks_analytical_solution(self.CP,self.S,self.X,self.sigma,self.T,self.r,self.b)
+        self.greek_differential = self.Greeks_differential_solution(self.CP,self.S,self.X,self.sigma,self.T,self.r,self.b,pct_change = 0.0001)
+
+    #1.欧式期权价格计算
     def BSM_Euro_cal(self,CP,S,X,sigma,T,r,b):
         '''
         Parameters
@@ -67,6 +70,7 @@ class BSM:
             raise ValueError("CP must be 'C' or 'P'")
         return price
     
+    #2.期权价格对于各个参数的敏感性分析
     def plot_sensitivity(self,x_array,array_name):
         import matplotlib.pyplot as plt
         plt.rcParams['font.sans-serif'] = ['SimHei']
@@ -102,7 +106,7 @@ class BSM:
         self.sigma_array = self.sigma
 
         return
-    #解析解
+    #3.greek的解析解
     def Greeks_analytical_solution(self,CP,S,X,sigma,T,r,b):
         """
         Parameters
@@ -112,7 +116,7 @@ class BSM:
         X : 行权价格.
         sigma :波动率.
         T : 年化到期时间.
-        r : 收益率.
+        r : 收益率
         b : 持有成本，当b = r 时，为标准的无股利模型，b=0时，为期货期权，b为r-q时，为支付股利模型，b为r-rf时为外汇期权.
         Returns
         -------
@@ -143,6 +147,36 @@ class BSM:
         else:
             raise ValueError("CP must be 'C' or 'P'")
         greeks = {"option_value":price,"delta":delta,"gamma":gamma,"vega":vega,"theta":theta,"rho":rho}
+        return greeks
+    #4.greek随着现价S变动而发生的改变
+    def plot_greek_sensitivity(self):
+        S = np.linspace(0.1,2*self.S,100)
+        result = self.Greeks_analytical_solution(self.CP,S,self.X,self.sigma,self.T,self.r,self.b)
+        fig,ax = plt.subplots(nrows=3,ncols=2,figsize = (8,12)) #使用多子图的方式输入结果，所以写的复杂一点
+        greek_list = [['option_value','delta'],['gamma','vega'],['theta','rho']] #和子图的二维数组对应一下
+        for m in range(3):
+            for n in range(2):
+                plot_item = greek_list[m][n]
+                ax[m,n].plot(S,result[plot_item])
+                ax[m,n].legend([plot_item])
+        plt.show()
+
+    #5.greek的差分解
+    def Greeks_differential_solution(self,CP,S,X,sigma,T,r,b,pct_change = 0.0001):
+        '''
+        为何需要差分解：
+        对于很多奇异期权，我们并不能直接获得其解析解，只能通过差分解来近似计算。
+        '''
+        option_value = self.BSM_Euro_cal(CP,S,X,sigma,T,r,b)
+        delta = (self.BSM_Euro_cal(CP,S + S*pct_change,X,sigma,T,r,b) - self.BSM_Euro_cal(CP,S - S*pct_change,X,sigma,T,r,b))/(2*S*pct_change)
+        gamma = (self.BSM_Euro_cal(CP,S + S*pct_change,X,sigma,T,r,b) + self.BSM_Euro_cal(CP,S - S*pct_change,X,sigma,T,r,b)-2*self.BSM_Euro_cal(CP,S,X,sigma,T,r,b)) /((S*pct_change)**2)
+        vega = (self.BSM_Euro_cal(CP,S,X,sigma + sigma*pct_change,T,r,b) - self.BSM_Euro_cal(CP,S,X,sigma - sigma*pct_change,T,r,b))/(2*sigma*pct_change)
+        theta = (self.BSM_Euro_cal(CP,S,X,sigma,T-T*pct_change,r,b) - self.BSM_Euro_cal(CP,S,X,sigma,T+T*pct_change,r,b))/(2*T*pct_change) 
+        if b!=0:
+            rho = (self.BSM_Euro_cal(CP,S,X,sigma,T,r+r*pct_change,b+r*pct_change) - self.BSM_Euro_cal(CP,S,X,sigma,T,r-r*pct_change,b-r*pct_change))/(2*r*pct_change)
+        else:
+            rho = (self.BSM_Euro_cal(CP,S,X,sigma,T,r+r*pct_change,b) - self.BSM_Euro_cal(CP,S,X,sigma,T,r-r*pct_change,b))/(2*r*pct_change)
+        greeks = {"option_value":option_value,"delta":delta,"gamma":gamma,"vega":vega,"theta":theta,"rho":rho}
         return greeks
 def IV(C0,CP,S,X,T,r,b,vol_est= 0.2):
     '''
@@ -180,7 +214,37 @@ def IV(C0,CP,S,X,T,r,b,vol_est= 0.2):
             c = start - vol_est
     return round(vol_est,4)
 
+def newton_iv(C0,CP,S,X,T,r,b,vol_est= 0.25,n_iter = 1000):
+    '''
+    用牛顿迭代法求隐含波动率
+    Parameters
+    ----------
+    C0：期权价值
+    CP：看涨或看跌"C"or"P"
+    S : 标的价格.
+    X : 行权价格.
+    T : 年化到期时间.
+    r : 收益率.
+    b : 持有成本，当b = r 时，为标准的无股利模型，b=0时，为期货期权，b为r-q时，为支付股利模型，b为r-rf时为外汇期权.
+    vol_est：预计的初始波动率
+    n_iter：迭代次数
+    Returns
+    -------
+    返回看涨期权的隐含波动率。
+    '''
+    for i in range(n_iter):
+        d1 = (np.log(S/X) + (b + vol_est**2/2)*T) / (vol_est* np.sqrt(T))
+        vega = S * np.exp((b-r)*T) * stats.norm.pdf(d1) * T**0.5 # 计算vega
+        vol_est = vol_est - (BSM(CP,S,X,vol_est,T,r,b).price - C0) / vega  #每次迭代都重新算一下波动率
+    return vol_est
+
+
+
 if __name__ == "__main__":
     bsm = BSM(CP = "C",S = 100,X = 100,sigma = 0.2,T = 1,r = 0.05,b = 0.05)
     print(bsm.price)
     print(IV(bsm.price,bsm.CP,bsm.S,bsm.X,bsm.T,bsm.r,bsm.b))
+    print(bsm.greek)
+    # bsm.plot_greek_sensitivity()
+    print(bsm.greek_differential)
+    print(newton_iv(bsm.price,bsm.CP,bsm.S,bsm.X,bsm.T,bsm.r,bsm.b))
