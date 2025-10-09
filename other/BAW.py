@@ -1,5 +1,6 @@
 '''
 美式期权可以用过BAW求出近似解
+已整合入AmericanOption.py
 '''
 
 import numpy as np
@@ -150,4 +151,21 @@ if __name__ == "__main__":
     a2 = BAW(CP="P",S=100,X=99,sigma=0.2,T=1,r=0.03,b=0,opt_method="newton")
     print(a1)
     print(a2)
+
+    #改变行权时间T，对比二叉树和BAW的结果
+    from Binarytree import binarytree_am
+    def model_compare(T_array):   #定义模型比较的函数
+        baw_value = np.zeros_like(T_array)
+        crr_value = np.zeros_like(T_array)
+        bsm_value = BSM(CP="P",S=100,X=99,sigma=0.2,T=T_array,r=0.03,b=0.03)
+        for i in range(len(T_array)):
+            baw_value[i] = BAW(CP="P",S=100,X=99,sigma=0.2,T=T_array[i],r=0.03,b=0.03,opt_method="newton")
+            crr_value[i] = binarytree_am(CP="P",m=1000,S0=100,T =T_array[i],sigma=0.2,K=99,r=0.03,b=0.03)
+        plt.plot(T_array,baw_value,label="BAW")
+        plt.plot(T_array,crr_value,label="CRR")
+        plt.plot(T_array,bsm_value,label="BSM")
+        plt.legend()
+        plt.show()
+        print("compare_over")
+    model_compare(T_array = np.linspace(0.01,100,50)) #比较100年以内各种模型的定价
 

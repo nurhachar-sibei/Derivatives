@@ -1,6 +1,7 @@
 '''
 二叉树模型:
 用于计算美式期权定价
+已整合入AmericanOption.py
 '''
 
 import pandas as pd
