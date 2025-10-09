@@ -37,3 +37,4 @@ def geo_brownian(steps,paths,T,S0,u,sigma):
 
 if __name__ == '__main__':
     S_path = geo_brownian(steps = 100,paths = 50,T = 1,S0 = 100,u = 0.03, sigma = 0.2)
+
