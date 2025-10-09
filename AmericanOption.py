@@ -34,19 +34,19 @@ class AmericanOption:
         
         Parameters:
         -----------
-        option_type : str
+        option_type(CP) : str
             期权类型，"C"为看涨期权，"P"为看跌期权
-        spot_price : float
+        spot_price(S) : float
             标的资产当前价格
-        strike_price : float
+        strike_price(X) : float
             行权价格
-        volatility : float
+        volatility(sigma) : float
             波动率
-        time_to_expiry : float
+        time_to_expiry(T) : float
             年化到期时间
-        risk_free_rate : float
+        risk_free_rate(r) : float
             无风险利率
-        cost_of_carry : float
+        cost_of_carry(b) : float
             持有成本，当b = r时为标准无股利模型，b=0时为black76，
             b为r-q时为支付股利模型，b为r-rf时为外汇期权
         """
@@ -407,4 +407,4 @@ if __name__ == "__main__":
     print(f"欧式期权价格: {option.bsm_european_price():.4f}")
     
     # 比较不同方法
-    option.compare_methods(time_array = np.linspace(0.01,100,50))
+    # option.compare_methods(time_array = np.linspace(0.01,100,50))
