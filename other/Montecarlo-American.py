@@ -13,7 +13,6 @@ def geo_brownian(steps,paths,T,S0,b,sigma):
     paths: 路径数
     T: 时间长度
     S0: 初始价格
-    b:  drift项
     sigma: 波动率
     '''
     dt = T/steps

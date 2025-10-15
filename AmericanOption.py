@@ -1,6 +1,6 @@
 """
 美式期权定价类
-整合了BAW近似解法和二叉树方法
+整合了BAW近似解法、二叉树方法和Monte Carlo LSM方法
 原BAW与Binarytree放入other文件夹
 """
 
@@ -22,9 +22,10 @@ class AmericanOption:
     """
     美式期权定价类
     
-    支持两种定价方法：
+    支持三种定价方法：
     1. BAW近似解法 (Barone-Adesi-Whaley)
     2. 二叉树方法 (Binomial Tree)
+    3. Monte Carlo LSM方法 (Longstaff-Schwartz)
     """
     
     def __init__(self, option_type, spot_price, strike_price, volatility, 
@@ -299,6 +300,93 @@ class AmericanOption:
         
         return option_value[0, 0]
     
+    def _generate_geometric_brownian_motion(self, steps, paths):
+        """
+        生成几何布朗运动路径
+        
+        Parameters:
+        -----------
+        steps : int
+            时间步数
+        paths : int
+            路径数
+            
+        Returns:
+        --------
+        np.ndarray : 价格路径矩阵，形状为(steps+1, paths)
+        """
+        dt = self.time_to_expiry / steps
+        S_path = np.zeros((steps + 1, paths))
+        S_path[0] = self.spot_price
+        
+        for step in range(1, steps + 1):
+            rn = np.random.standard_normal(paths)
+            S_path[step] = S_path[step-1] * np.exp(
+                (self.cost_of_carry - 0.5 * self.volatility**2) * dt + 
+                self.volatility * np.sqrt(dt) * rn
+            )
+        
+        return S_path
+    
+    def monte_carlo_lsm_price(self, steps=1000, paths=50000, random_seed=None):
+        """
+        使用Monte Carlo LSM方法计算美式期权价格
+        
+        Parameters:
+        -----------
+        steps : int
+            时间步数，默认1000
+        paths : int
+            模拟路径数，默认50000
+        random_seed : int, optional
+            随机种子，用于结果重现
+            
+        Returns:
+        --------
+        float : 美式期权价格
+        """
+        if random_seed is not None:
+            np.random.seed(random_seed)
+        
+        # 第一步：生成几何布朗运动的价格路径
+        S_path = self._generate_geometric_brownian_motion(steps, paths)
+        dt = self.time_to_expiry / steps
+        cash_flow = np.zeros_like(S_path)  # 现金流矩阵
+        df = np.exp(-self.risk_free_rate * dt)  # 折现因子
+        
+        # 第二步：计算每个时间节点的期权价值
+        if self.option_type == 'C':
+            cash_flow[-1] = np.maximum(S_path[-1] - self.strike_price, 0)  # 最后一期的价值
+            exercise_value = np.maximum(S_path - self.strike_price, 0)
+        elif self.option_type == 'P':
+            cash_flow[-1] = np.maximum(self.strike_price - S_path[-1], 0)  # 最后一期的价值
+            exercise_value = np.maximum(self.strike_price - S_path, 0)
+        else:
+            raise ValueError('option_type must be C or P')
+        
+        # 第三步：计算最优决策点（向后递推）
+        for t in range(steps - 1, 0, -1):  # steps-1 -> 倒数第二个时间点
+            df_cash_flow = cash_flow[t + 1] * df  # 未来一期的现金流折现
+            S_price = S_path[t]  # 当前所有模拟路径下的股价集合
+            itm_index = (exercise_value[t] > 0)  # 当前时间下实值的index，用于后续的回归
+            
+            if np.sum(itm_index) > 0:  # 确保有实值期权
+                # 实值路径下的标的股价X和下一期的折现现金流Y回归
+                reg = np.polyfit(x=S_price[itm_index], y=df_cash_flow[itm_index], deg=2)
+                holding_value = exercise_value[t].copy()
+                holding_value[itm_index] = np.polyval(reg, S_price[itm_index])
+                
+                # 在实值路径上，进一步寻找出提前行权的index
+                ex_index = itm_index & (exercise_value[t] > holding_value)
+                # 提前行权的路径下，现金流为行权价值
+                df_cash_flow[ex_index] = exercise_value[t][ex_index]
+            
+            cash_flow[t] = df_cash_flow
+        
+        # 第四步：计算期权价值
+        value = cash_flow[1].mean() * df
+        return value
+    
     def price(self, method="baw", **kwargs):
         """
         计算美式期权价格的统一接口
@@ -306,7 +394,7 @@ class AmericanOption:
         Parameters:
         -----------
         method : str
-            定价方法，"baw"使用BAW方法，"binomial"使用二叉树方法
+            定价方法，"baw"使用BAW方法，"binomial"使用二叉树方法，"monte_carlo"使用Monte Carlo LSM方法
         **kwargs : dict
             其他参数，传递给具体的定价方法
             
@@ -318,10 +406,12 @@ class AmericanOption:
             return self.baw_price(**kwargs)
         elif method.lower() == "binomial":
             return self.binomial_tree_price(**kwargs)
+        elif method.lower() in ["monte_carlo", "montecarlo", "lsm"]:
+            return self.monte_carlo_lsm_price(**kwargs)
         else:
-            raise ValueError("方法必须是 'baw' 或 'binomial'")
+            raise ValueError("方法必须是 'baw', 'binomial' 或 'monte_carlo'")
     
-    def compare_methods(self, time_array=None, plot=True):
+    def compare_methods(self, time_array=None, plot=True, mc_params=None):
         """
         比较不同定价方法的结果
         
@@ -331,6 +421,8 @@ class AmericanOption:
             时间数组，默认为0.01到2年的50个点
         plot : bool
             是否绘制比较图，默认True
+        mc_params : dict, optional
+            Monte Carlo方法的参数，包含steps, paths, random_seed
             
         Returns:
         --------
@@ -339,8 +431,12 @@ class AmericanOption:
         if time_array is None:
             time_array = np.linspace(0.01, 2, 50)
         
+        if mc_params is None:
+            mc_params = {"steps": 500, "paths": 10000, "random_seed": 42}
+        
         baw_prices = []
         binomial_prices = []
+        monte_carlo_prices = []
         european_prices = []
         
         original_time = self.time_to_expiry
@@ -349,6 +445,7 @@ class AmericanOption:
             self.time_to_expiry = T
             baw_prices.append(self.baw_price())
             binomial_prices.append(self.binomial_tree_price())
+            monte_carlo_prices.append(self.monte_carlo_lsm_price(**mc_params))
             european_prices.append(self.bsm_european_price())
         
         # 恢复原始到期时间
@@ -358,13 +455,15 @@ class AmericanOption:
             'time': time_array,
             'baw': np.array(baw_prices),
             'binomial': np.array(binomial_prices),
+            'monte_carlo': np.array(monte_carlo_prices),
             'european': np.array(european_prices)
         }
         
         if plot:
-            plt.figure(figsize=(10, 6))
+            plt.figure(figsize=(12, 8))
             plt.plot(time_array, baw_prices, label="BAW美式期权", linewidth=2)
             plt.plot(time_array, binomial_prices, label="二叉树美式期权", linewidth=2, linestyle='--')
+            plt.plot(time_array, monte_carlo_prices, label="Monte Carlo LSM美式期权", linewidth=2, linestyle='-.')
             plt.plot(time_array, european_prices, label="BSM欧式期权", linewidth=2, linestyle=':')
             plt.xlabel("到期时间 (年)")
             plt.ylabel("期权价格")
@@ -404,6 +503,7 @@ if __name__ == "__main__":
     print(option)
     print(f"BAW价格: {option.baw_price():.4f}")
     print(f"二叉树价格: {option.binomial_tree_price():.4f}")
+    print(f"Monte Carlo LSM价格: {option.monte_carlo_lsm_price(steps=1000, paths=50000, random_seed=42):.4f}")
     print(f"欧式期权价格: {option.bsm_european_price():.4f}")
     
     # 比较不同方法
