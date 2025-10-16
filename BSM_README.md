@@ -69,16 +69,20 @@ BSM(CP, S, X, sigma, T, r, b)
 **参数说明:**
 
 - `CP` (str): 期权类型
-
   - `"C"`: 看涨期权 (Call Option)
   - `"P"`: 看跌期权 (Put Option)
-- `S` (float): 标的资产当前价格
-- `X` (float): 行权价格
-- `sigma` (float): 波动率（年化）
-- `T` (float): 到期时间（年）
-- `r` (float): 无风险利率（年化）
-- `b` (float): 持有成本（年化）
 
+- `S` (float): 标的资产当前价格
+
+- `X` (float): 行权价格
+
+- `sigma` (float): 波动率（年化）
+
+- `T` (float): 到期时间（年）
+
+- `r` (float): 无风险利率（年化）
+
+- `b` (float): 持有成本（年化）
   - 当 `b = r` 时：标准无股利模型
   - 当 `b = 0` 时：期货期权模型
   - 当 `b = r - q` 时：支付股利模型（q为股利率）
@@ -108,7 +112,6 @@ plot_sensitivity(x_array, array_name)
 ```
 
 **参数:**
-
 - `x_array`: 参数变化范围的数组
 - `array_name`: 参数名称，可选值：`"S"`, `"X"`, `"T"`, `"r"`, `"b"`, `"sigma"`
 
@@ -121,7 +124,6 @@ Greeks_analytical_solution(CP, S, X, sigma, T, r, b)
 ```
 
 **返回:** dict - 包含所有希腊字母的字典
-
 - `option_value`: 期权价值
 - `delta`: 价格敏感性
 - `gamma`: Delta的敏感性
@@ -144,7 +146,6 @@ Greeks_differential_solution(CP, S, X, sigma, T, r, b, pct_change=0.0001)
 ```
 
 **参数:**
-
 - `pct_change`: 数值微分的步长，默认0.01%
 
 **返回:** dict - 希腊字母的数值解
@@ -158,7 +159,6 @@ IV(C0, CP, S, X, T, r, b, vol_est=0.2)
 ```
 
 **参数:**
-
 - `C0`: 市场期权价格
 - 其他参数同BSM类
 - `vol_est`: 初始波动率估计
@@ -172,7 +172,6 @@ newton_iv(C0, CP, S, X, T, r, b, vol_est=0.25, n_iter=1000)
 ```
 
 **参数:**
-
 - `n_iter`: 最大迭代次数
 
 **返回:** float - 隐含波动率
@@ -390,19 +389,16 @@ plt.show()
 ### Black-Scholes-Merton公式
 
 对于欧式看涨期权：
-
 ```
 C = S * e^((b-r)*T) * N(d1) - X * e^(-r*T) * N(d2)
 ```
 
 对于欧式看跌期权：
-
 ```
 P = X * e^(-r*T) * N(-d2) - S * e^((b-r)*T) * N(-d1)
 ```
 
 其中：
-
 ```
 d1 = [ln(S/X) + (b + σ²/2)*T] / (σ*√T)
 d2 = d1 - σ*√T
@@ -433,13 +429,16 @@ d2 = d1 - σ*√T
 ## 扩展应用
 
 该BSM实现可以作为基础模块，扩展到：
-
 - 美式期权定价（结合数值方法）
 - 奇异期权定价
 - 期权组合风险管理
 - 波动率交易策略
 - 期权做市商系统
 
+## 许可证
+
+本项目遵循原始代码的许可证条款。
+
 ---
 
-*最后更新: 20251009年*
+*最后更新: 2024年*
